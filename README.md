@@ -8,7 +8,6 @@ A modern, minimal image viewer for Windows with HDR support.
 
 一个现代化的轻量级 Windows 图片查看器，支持 HDR。
 
-[English](#features) | [中文](#功能特性)
 
 </div>
 
@@ -37,12 +36,6 @@ A modern, minimal image viewer for Windows with HDR support.
 - **深色/浅色主题**：跟随系统主题
 - **大文件处理**：优雅处理 100MB 以上的图片
 - **单文件可执行**：自包含，无需额外依赖
-
-## Download / 下载
-
-Download the latest release from the [Releases](../../releases) page.
-
-从 [Releases](../../releases) 页面下载最新版本。
 
 ## Requirements / 系统要求
 
