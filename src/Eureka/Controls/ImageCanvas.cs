@@ -17,10 +17,9 @@ public class ImageCanvas : Control
     private Point _lastMousePos;
     private bool _isPanning;
     
-    public const double MaxZoom = 10.0; // 1000%
-    public const double MinZoom = 0.01; // 1%
+    public const double MaxZoom = 10.0;
+    public const double MinZoom = 0.01;
     
-    // Dependency properties
     public static readonly DependencyProperty ImageSourceProperty =
         DependencyProperty.Register(nameof(ImageSource), typeof(BitmapSource), typeof(ImageCanvas),
             new PropertyMetadata(null, OnImageChanged));
@@ -29,7 +28,6 @@ public class ImageCanvas : Control
         DependencyProperty.Register(nameof(Zoom), typeof(double), typeof(ImageCanvas),
             new PropertyMetadata(1.0));
     
-    // Events
     public event Action<double>? ZoomChanged;
     public event Action<int, int, Color>? PixelHovered;
     
@@ -75,7 +73,7 @@ public class ImageCanvas : Control
         
         var sx = ActualWidth / _bitmap.PixelWidth;
         var sy = ActualHeight / _bitmap.PixelHeight;
-        _zoom = Math.Min(sx, sy) * 0.95; // 95% to leave some margin
+        _zoom = Math.Min(sx, sy) * 0.95;
         
         CenterImage();
         ZoomChanged?.Invoke(_zoom);
@@ -159,19 +157,16 @@ public class ImageCanvas : Control
             _bitmap.PixelWidth * _zoom,
             _bitmap.PixelHeight * _zoom);
         
-        // Check if image is visible
         var visible = new Rect(RenderSize);
         if (!dest.IntersectsWith(visible)) return;
         
         dc.PushClip(new RectangleGeometry(visible));
         
-        // Use high quality for normal zoom, nearest neighbor for pixel art
-        RenderOptions.SetBitmapScalingMode(this, 
+        RenderOptions.SetBitmapScalingMode(this,
             _zoom >= 8 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
         
         dc.DrawImage(_bitmap, dest);
         
-        // Draw pixel grid at high zoom
         if (_zoom >= 16)
         {
             var pen = new Pen(new SolidColorBrush(Color.FromArgb(20, 128, 128, 128)), 0.5);
@@ -215,7 +210,6 @@ public class ImageCanvas : Control
             InvalidateVisual();
         }
         
-        // Update pixel info
         if (_bitmap != null)
         {
             var imgX = (int)((pos.X - _panOffset.X) / _zoom);

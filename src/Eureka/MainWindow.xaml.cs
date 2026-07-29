@@ -20,7 +20,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         
-        // Apply dark mode to window
         SourceInitialized += (_, _) =>
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -29,7 +28,6 @@ public partial class MainWindow : Window
         
         App.ThemeChanged += _ => InvalidateVisual();
         
-        // Handle command line argument
         var args = Environment.GetCommandLineArgs();
         if (args.Length > 1 && File.Exists(args[1]))
         {
@@ -41,7 +39,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // 大文件警告
             var fi = new FileInfo(filePath);
             if (fi.Length > 100 * 1024 * 1024)
             {
@@ -51,7 +48,6 @@ public partial class MainWindow : Window
                 if (!warning.ShouldOpen) return;
             }
             
-            // 清除缓存
             _sdrCache = null;
             
             Title = "Eureka - Loading...";
@@ -74,12 +70,9 @@ public partial class MainWindow : Window
             _originalBitmap = await imgTask;
             if (_originalBitmap == null) { Title = "Eureka"; FileInfoText.Text = "No image loaded"; return; }
             
-            // 自动旋转
             if (_metadata.Orientation > 1)
                 _originalBitmap = ApplyOrientation(_originalBitmap, _metadata.Orientation);
             
-            // 在UI线程更新界面
-            // 预缓存SDR版本
             if (_metadata.IsHDR)
                 _sdrCache = await Task.Run(() => _decoder.ConvertHdrToSdr(_originalBitmap));
             
@@ -87,7 +80,6 @@ public partial class MainWindow : Window
             {
                 if (_metadata.IsHDR)
                 {
-                    // HDR图片：显示原始HDR
                     Canvas.ImageSource = _originalBitmap;
                     HdrToggle.IsChecked = true;
                     HdrToggle.Visibility = Visibility.Visible;
@@ -201,7 +193,6 @@ public partial class MainWindow : Window
         if (converted != null) Canvas.ImageSource = converted;
     }
     
-    // Event handlers
     private void OnZoomChanged(double zoom) => ZoomText.Text = $"{zoom * 100:F0}%";
     
     private void OnPixelHovered(int x, int y, Color c) 
@@ -221,12 +212,10 @@ public partial class MainWindow : Window
         
         if (HdrToggle.IsChecked == true)
         {
-            // Show original HDR
             Canvas.ImageSource = _originalBitmap;
         }
         else
         {
-            // Show SDR conversion - use cache if available
             if (_sdrCache != null)
             {
                 Canvas.ImageSource = _sdrCache;

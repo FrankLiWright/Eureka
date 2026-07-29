@@ -8,9 +8,6 @@ using MetadataExtractor.Formats.Exif;
 
 namespace Eureka;
 
-/// <summary>
-/// Image metadata
-/// </summary>
 public sealed class ImageMetadata
 {
     public string FilePath { get; init; } = "";
@@ -25,7 +22,6 @@ public sealed class ImageMetadata
     public string? ColorProfile { get; init; }
     public bool IsHDR { get; init; }
     
-    // EXIF
     public string? CameraMake { get; init; }
     public string? CameraModel { get; init; }
     public DateTime? DateTaken { get; init; }
@@ -42,9 +38,6 @@ public sealed class ImageMetadata
     public int Orientation { get; init; } = 1;
 }
 
-/// <summary>
-/// Image decoder with support for many formats including AVIF, HEIF, HDR
-/// </summary>
 public sealed class ImageDecoder
 {
     public ImageMetadata LoadMetadata(string filePath)
@@ -59,7 +52,6 @@ public sealed class ImageDecoder
         int width = 0, height = 0, bpp = 0;
         bool hasAlpha = false;
         
-        // RAW文件使用Magick.NET的Ping模式快速读取尺寸
         if (IsRawFormat(ext))
         {
             try
@@ -129,7 +121,6 @@ public sealed class ImageDecoder
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         
-        // Standard formats via WPF
         if (IsStandardFormat(ext))
         {
             var bmp = new BitmapImage();
@@ -142,25 +133,21 @@ public sealed class ImageDecoder
             return bmp;
         }
         
-        // AVIF/HEIF via Magick.NET
         if (ext is ".avif" or ".heif" or ".heic")
         {
             return DecodeWithMagick(filePath);
         }
         
-        // JXL via ImageSharp
         if (ext is ".jxl")
         {
             return DecodeWithImageSharp(filePath);
         }
         
-        // RAW formats via Magick.NET
         if (IsRawFormat(ext))
         {
             return DecodeWithMagick(filePath);
         }
         
-        // Fallback to WPF decoder
         try
         {
             using var stream = File.OpenRead(filePath);
@@ -285,23 +272,18 @@ public sealed class ImageDecoder
         {
             using var image = new MagickImage();
             
-            // 使用Magick.NET的内置RAW处理
             image.Read(filePath);
             
-            // 确保输出为sRGB色彩空间
             image.ColorSpace = ColorSpace.sRGB;
             
-            // 转换为8位深度
             image.Depth = 8;
             
-            // 设置高质量缩放选项
             image.FilterType = FilterType.Lanczos;
             image.Settings.Interlace = Interlace.NoInterlace;
             
             var width = image.Width;
             var height = image.Height;
             
-            // 直接获取BGRA格式的像素数据
             using var pixelsCollection = image.GetPixels();
             var pixelArray = pixelsCollection.ToByteArray(PixelMapping.BGRA);
             
@@ -360,7 +342,6 @@ public sealed class ImageDecoder
     
     private static string DetectColorSpace(string filePath)
     {
-        // Simple detection based on format
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         if (ext is ".avif" or ".heif" or ".heic")
             return "BT.2020 / PQ";
@@ -377,12 +358,9 @@ public sealed class ImageDecoder
                 var dirs = MetadataExtractor.ImageMetadataReader.ReadMetadata(filePath);
                 foreach (var dir in dirs)
                 {
-                    // Check for HDR-related tags
                     if (dir.ContainsTag(0x00A0)) // PixelXDimension
                     {
-                        // Some HEIC files indicate HDR via specific metadata
                     }
-                    // Check bit depth from image hints
                     foreach (var tag in dir.Tags)
                     {
                         var name = tag.Name?.ToLower() ?? "";
@@ -393,7 +371,6 @@ public sealed class ImageDecoder
                         }
                     }
                 }
-                // Fallback: use Magick.NET
                 using var image = new MagickImage();
                 image.Ping(filePath);
                 return image.Depth > 8;
@@ -408,13 +385,11 @@ public sealed class ImageDecoder
         var result = new Dictionary<string, string>();
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         
-        // RAW文件使用TagLib读取EXIF（支持CR3/NEF/ARW等）
         if (IsRawFormat(ext))
         {
             return ExtractExifFromRaw(filePath);
         }
-        
-        // HEIC/HEIF/AVIF使用MetadataExtractor读取EXIF
+
         if (ext is ".avif" or ".heif" or ".heic")
         {
             return ExtractExifFromRaw(filePath);
@@ -443,7 +418,6 @@ public sealed class ImageDecoder
             TryAdd(result, meta, "System.Photo.Flash", "Flash");
             TryAdd(result, meta, "System.Software.ProductName", "Software");
             
-            // Read orientation from EXIF query
             try
             {
                 var orient = meta.GetQuery("/app1/ifd/{ushort=274}");
@@ -462,7 +436,6 @@ public sealed class ImageDecoder
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
             
-            // 读取EXIF SubIFD（包含快门、光圈、ISO等）
             var exifDir = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
             if (exifDir != null)
             {
@@ -488,7 +461,6 @@ public sealed class ImageDecoder
                     result["Orientation"] = orient.ToString();
             }
             
-            // 读取IFD0（包含相机型号等）
             var ifd0Dir = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
             if (ifd0Dir != null)
             {
@@ -501,14 +473,12 @@ public sealed class ImageDecoder
                 var software = ifd0Dir.GetDescription(ExifDirectoryBase.TagSoftware);
                 if (!string.IsNullOrEmpty(software)) result["Software"] = software;
                 
-                // 如果SubIFD没有Orientation，从IFD0读取
                 if (!result.ContainsKey("Orientation"))
                 {
                     if (ifd0Dir.TryGetInt32(ExifDirectoryBase.TagOrientation, out int orient))
                         result["Orientation"] = orient.ToString();
                 }
                 
-                // 如果SubIFD没有日期，从IFD0读取
                 if (!result.ContainsKey("DateTaken"))
                 {
                     if (ifd0Dir.TryGetDateTime(ExifDirectoryBase.TagDateTime, out DateTime dt))
@@ -516,7 +486,6 @@ public sealed class ImageDecoder
                 }
             }
             
-            // 读取Canon Makernotes（镜头型号等）
             var canonDir = directories.OfType<MetadataExtractor.Formats.Exif.Makernotes.CanonMakernoteDirectory>().FirstOrDefault();
             if (canonDir != null)
             {

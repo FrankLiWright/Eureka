@@ -19,10 +19,8 @@ public partial class App : Application
     
     private void App_Startup(object sender, StartupEventArgs e)
     {
-        // Detect system theme
         IsDarkTheme = GetSystemTheme();
         
-        // Listen for theme changes
         SystemEvents.UserPreferenceChanged += (s, args) =>
         {
             var newTheme = GetSystemTheme();
@@ -39,7 +37,6 @@ public partial class App : Application
         
         ApplyTheme(IsDarkTheme);
         
-        // Handle file argument (drag to exe)
         if (e.Args.Length > 0 && File.Exists(e.Args[0]))
         {
             // Will be handled by MainWindow

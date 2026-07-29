@@ -13,7 +13,6 @@ public partial class LargeFileWarning : Window
         var sizeMB = fileSize / (1024.0 * 1024.0);
         MessageText.Text = $"\"{fileName}\" is {sizeMB:F0} MB.\n\nOpening this file may use significant memory and take longer to load.";
         
-        // Apply dark mode
         SourceInitialized += (_, _) =>
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
