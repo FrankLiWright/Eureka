@@ -113,6 +113,8 @@ public sealed class ImageDecoder
             WhiteBalance = exif.GetValueOrDefault("WhiteBalance"),
             Flash = exif.GetValueOrDefault("Flash"),
             Software = exif.GetValueOrDefault("Software"),
+            Artist = exif.GetValueOrDefault("Artist"),
+            Copyright = exif.GetValueOrDefault("Copyright"),
             Orientation = ParseInt(exif.GetValueOrDefault("Orientation")) ?? 1
         };
     }
@@ -383,55 +385,7 @@ public sealed class ImageDecoder
     private static Dictionary<string, string> ExtractExif(string filePath)
     {
         var result = new Dictionary<string, string>();
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
         
-        if (IsRawFormat(ext))
-        {
-            return ExtractExifFromRaw(filePath);
-        }
-
-        if (ext is ".avif" or ".heif" or ".heic")
-        {
-            return ExtractExifFromRaw(filePath);
-        }
-        
-        try
-        {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.UriSource = new Uri(filePath, UriKind.Absolute);
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.EndInit();
-            
-            var meta = bmp.Metadata as BitmapMetadata;
-            if (meta == null) return result;
-            
-            TryAdd(result, meta, "System.Photo.CameraManufacturer", "Make");
-            TryAdd(result, meta, "System.Photo.CameraModel", "Model");
-            TryAdd(result, meta, "System.Photo.DateTaken", "DateTaken");
-            TryAdd(result, meta, "System.Photo.ExposureTime", "ExposureTime");
-            TryAdd(result, meta, "System.Photo.FNumber", "FNumber");
-            TryAdd(result, meta, "System.Photo.ISOSpeed", "ISO");
-            TryAdd(result, meta, "System.Photo.FocalLength", "FocalLength");
-            TryAdd(result, meta, "System.Photo.LensModel", "LensModel");
-            TryAdd(result, meta, "System.Photo.WhiteBalance", "WhiteBalance");
-            TryAdd(result, meta, "System.Photo.Flash", "Flash");
-            TryAdd(result, meta, "System.Software.ProductName", "Software");
-            
-            try
-            {
-                var orient = meta.GetQuery("/app1/ifd/{ushort=274}");
-                if (orient != null) result["Orientation"] = orient.ToString();
-            }
-            catch { }
-        }
-        catch { }
-        return result;
-    }
-    
-    private static Dictionary<string, string> ExtractExifFromRaw(string filePath)
-    {
-        var result = new Dictionary<string, string>();
         try
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
@@ -459,6 +413,14 @@ public sealed class ImageDecoder
                 
                 if (exifDir.TryGetInt32(ExifDirectoryBase.TagOrientation, out int orient))
                     result["Orientation"] = orient.ToString();
+                
+                if (exifDir.TryGetInt32(ExifDirectoryBase.TagWhiteBalance, out int wb))
+                    result["WhiteBalance"] = wb == 1 ? "Manual" : "Auto";
+                
+                // Read lens model from EXIF if available (common in modern cameras)
+                var lens = exifDir.GetDescription(ExifDirectoryBase.TagLensModel);
+                if (!string.IsNullOrEmpty(lens))
+                    result["LensModel"] = lens;
             }
             
             var ifd0Dir = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
@@ -473,6 +435,12 @@ public sealed class ImageDecoder
                 var software = ifd0Dir.GetDescription(ExifDirectoryBase.TagSoftware);
                 if (!string.IsNullOrEmpty(software)) result["Software"] = software;
                 
+                var artist = ifd0Dir.GetDescription(ExifDirectoryBase.TagArtist);
+                if (!string.IsNullOrEmpty(artist)) result["Artist"] = artist;
+                
+                var copyright = ifd0Dir.GetDescription(ExifDirectoryBase.TagCopyright);
+                if (!string.IsNullOrEmpty(copyright)) result["Copyright"] = copyright;
+                
                 if (!result.ContainsKey("Orientation"))
                 {
                     if (ifd0Dir.TryGetInt32(ExifDirectoryBase.TagOrientation, out int orient))
@@ -486,23 +454,31 @@ public sealed class ImageDecoder
                 }
             }
             
-            var canonDir = directories.OfType<MetadataExtractor.Formats.Exif.Makernotes.CanonMakernoteDirectory>().FirstOrDefault();
-            if (canonDir != null)
-            {
-                var lens = canonDir.GetDescription(MetadataExtractor.Formats.Exif.Makernotes.CanonMakernoteDirectory.TagLensModel);
-                if (!string.IsNullOrEmpty(lens)) result["LensModel"] = lens;
-            }
+            ExtractLensInfo(directories, result);
         }
         catch { }
         return result;
     }
     
+    private static void ExtractLensInfo(IReadOnlyList<MetadataExtractor.Directory> directories, Dictionary<string, string> result)
+    {
+        // Search all directories for lens-related tags
+        foreach (var dir in directories)
+        {
+            foreach (var tag in dir.Tags)
+            {
+                var name = tag.Name?.ToLowerInvariant() ?? "";
+                if ((name.Contains("lens") || name.Contains("镜头")) && !string.IsNullOrEmpty(tag.Description))
+                {
+                    result["LensModel"] = tag.Description;
+                    return;
+                }
+            }
+        }
+    }
+    
 
     
-    private static void TryAdd(Dictionary<string, string> d, BitmapMetadata m, string q, string k)
-    {
-        try { var v = m.GetQuery(q); if (v != null) d[k] = v.ToString() ?? ""; } catch { }
-    }
     
     private static (int, int) GetDimensionsFallback(string filePath)
     {

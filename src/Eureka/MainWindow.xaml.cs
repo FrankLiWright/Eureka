@@ -157,6 +157,8 @@ public partial class MainWindow : Window
         AddInfoIfNotNull("WB", _metadata.WhiteBalance);
         AddInfoIfNotNull("Flash", _metadata.Flash);
         AddInfoIfNotNull("Software", _metadata.Software);
+        AddInfoIfNotNull("Artist", _metadata.Artist);
+        AddInfoIfNotNull("Copyright", _metadata.Copyright);
     }
     
     private void AddInfoSection(string title)
