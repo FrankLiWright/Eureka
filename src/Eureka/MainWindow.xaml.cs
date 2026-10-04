@@ -148,17 +148,32 @@ public partial class MainWindow : Window
         
         AddInfoSection("EXIF");
         AddInfoIfNotNull("Camera", Combine(_metadata.CameraMake, _metadata.CameraModel));
-        AddInfoIfNotNull("Lens", _metadata.LensModel);
+        AddInfoIfNotNull("Serial", _metadata.CameraSerial);
+        AddInfoIfNotNull("Lens", Combine(_metadata.LensMake, _metadata.LensModel));
         AddInfoIfNotNull("Date", _metadata.DateTaken?.ToString("yyyy-MM-dd HH:mm:ss"));
         AddInfoIfNotNull("Shutter", _metadata.ExposureTime);
-        AddInfoIfNotNull("Aperture", _metadata.FNumber != null ? $"f/{_metadata.FNumber:F1}" : null);
-        AddInfoIfNotNull("ISO", _metadata.IsoSpeed?.ToString());
+        AddInfoIfNotNull("Aperture", _metadata.ApertureDisplay ?? (_metadata.FNumber != null ? $"f/{_metadata.FNumber:F1}" : null));
+        AddInfoIfNotNull("ISO", _metadata.IsoDisplay ?? _metadata.IsoSpeed?.ToString());
         AddInfoIfNotNull("Focal", _metadata.FocalLength);
+        AddInfoIfNotNull("Focal 35mm", _metadata.FocalLength35mm);
+        AddInfoIfNotNull("Exposure", _metadata.ExposureBias);
+        AddInfoIfNotNull("Max Aperture", _metadata.MaxAperture);
+        AddInfoIfNotNull("Metering", _metadata.MeteringMode);
+        AddInfoIfNotNull("Distance", _metadata.SubjectDistance);
+        AddInfoIfNotNull("Zoom", _metadata.DigitalZoom);
+        AddInfoIfNotNull("Light", _metadata.LightSource);
+        AddInfoIfNotNull("Brightness", _metadata.Brightness);
+        AddInfoIfNotNull("Program", _metadata.ProgramMode);
         AddInfoIfNotNull("WB", _metadata.WhiteBalance);
         AddInfoIfNotNull("Flash", _metadata.Flash);
+        if (!string.IsNullOrEmpty(_metadata.OrientationDisplay))
+            AddInfoIfNotNull("Orientation", _metadata.OrientationDisplay);
         AddInfoIfNotNull("Software", _metadata.Software);
         AddInfoIfNotNull("Artist", _metadata.Artist);
         AddInfoIfNotNull("Copyright", _metadata.Copyright);
+        AddInfoIfNotNull("Title", _metadata.Title);
+        AddInfoIfNotNull("Subject", _metadata.Subject);
+        AddInfoIfNotNull("Keywords", _metadata.Keywords);
     }
     
     private void AddInfoSection(string title)

@@ -24,18 +24,36 @@ public sealed class ImageMetadata
     
     public string? CameraMake { get; init; }
     public string? CameraModel { get; init; }
+    public string? CameraSerial { get; init; }
+    public string? LensMake { get; init; }
     public DateTime? DateTaken { get; init; }
     public string? ExposureTime { get; init; }
     public double? FNumber { get; init; }
+    public string? ApertureDisplay { get; init; }
     public int? IsoSpeed { get; init; }
+    public string? IsoDisplay { get; init; }
     public string? FocalLength { get; init; }
+    public string? FocalLength35mm { get; init; }
+    public string? ExposureBias { get; init; }
+    public string? MaxAperture { get; init; }
+    public string? MeteringMode { get; init; }
+    public string? SubjectDistance { get; init; }
+    public string? DigitalZoom { get; init; }
+    public string? LightSource { get; init; }
+    public string? Brightness { get; init; }
+    public string? ProgramMode { get; init; }
     public string? LensModel { get; init; }
     public string? WhiteBalance { get; init; }
     public string? Flash { get; init; }
     public string? Software { get; init; }
     public string? Artist { get; init; }
     public string? Copyright { get; init; }
+    public string? Title { get; init; }
+    public string? Subject { get; init; }
+    public string? Keywords { get; init; }
+    public string? OrientationDisplay { get; init; }
     public int Orientation { get; init; } = 1;
+    public string? SourceHint { get; init; }
 }
 
 public sealed class ImageDecoder
@@ -89,9 +107,28 @@ public sealed class ImageDecoder
             }
         }
         
-        // EXIF数据在后台线程读取，不阻塞主线程
+        // Windows Property System first — same pipeline as Explorer's Details
+        // pane (handlers reconcile EXIF/XMP/IPTC and format values for display).
+        // MetadataExtractor fills gaps (formats without a Windows property handler,
+        // or fields the handler left empty).
+        var win = WindowsPropertyReader.Read(filePath);
         var exif = ExtractExif(filePath);
-        
+
+        string? Pick(string? windows, string? fallback) =>
+            !string.IsNullOrWhiteSpace(windows) ? windows
+            : !string.IsNullOrWhiteSpace(fallback) ? fallback
+            : null;
+
+        var orientation = win?.Orientation
+            ?? ParseInt(exif.GetValueOrDefault("Orientation"))
+            ?? 1;
+
+        var sourceHint = win is { HasAnyValue: true }
+            ? (win.CameraModel != null || win.ExposureTime != null || win.DateTaken != null
+                ? "Windows Property System"
+                : "Windows + MetadataExtractor")
+            : "MetadataExtractor";
+
         return new ImageMetadata
         {
             FilePath = filePath,
@@ -100,22 +137,40 @@ public sealed class ImageDecoder
             FileSize = fi.Length,
             BitsPerPixel = bpp,
             HasAlpha = hasAlpha,
-            ColorSpace = DetectColorSpace(filePath),
+            ColorSpace = Pick(win?.ColorSpace, DetectColorSpace(filePath)) ?? "sRGB",
             IsHDR = DetectHDR(filePath),
-            CameraMake = exif.GetValueOrDefault("Make"),
-            CameraModel = exif.GetValueOrDefault("Model"),
-            DateTaken = ParseDate(exif.GetValueOrDefault("DateTaken")),
-            ExposureTime = exif.GetValueOrDefault("ExposureTime"),
-            FNumber = ParseDouble(exif.GetValueOrDefault("FNumber")),
-            IsoSpeed = ParseInt(exif.GetValueOrDefault("ISO")),
-            FocalLength = exif.GetValueOrDefault("FocalLength"),
-            LensModel = exif.GetValueOrDefault("LensModel"),
-            WhiteBalance = exif.GetValueOrDefault("WhiteBalance"),
-            Flash = exif.GetValueOrDefault("Flash"),
-            Software = exif.GetValueOrDefault("Software"),
-            Artist = exif.GetValueOrDefault("Artist"),
-            Copyright = exif.GetValueOrDefault("Copyright"),
-            Orientation = ParseInt(exif.GetValueOrDefault("Orientation")) ?? 1
+            CameraMake = Pick(win?.CameraMake, exif.GetValueOrDefault("Make")),
+            CameraModel = Pick(win?.CameraModel, exif.GetValueOrDefault("Model")),
+            CameraSerial = Pick(win?.CameraSerial, exif.GetValueOrDefault("CameraSerial")),
+            LensMake = Pick(win?.LensMake, exif.GetValueOrDefault("LensMake")),
+            DateTaken = win?.DateTaken ?? ParseDate(exif.GetValueOrDefault("DateTaken")),
+            ExposureTime = Pick(win?.ExposureTime, exif.GetValueOrDefault("ExposureTime")),
+            FNumber = win?.FNumber ?? ParseDouble(exif.GetValueOrDefault("FNumber")),
+            ApertureDisplay = Pick(win?.ApertureDisplay, FormatAperture(win?.FNumber ?? ParseDouble(exif.GetValueOrDefault("FNumber")))),
+            IsoSpeed = win?.IsoSpeed ?? ParseInt(exif.GetValueOrDefault("ISO")),
+            IsoDisplay = Pick(win?.IsoDisplay, FormatIso(win?.IsoSpeed ?? ParseInt(exif.GetValueOrDefault("ISO")))),
+            FocalLength = Pick(win?.FocalLength, exif.GetValueOrDefault("FocalLength")),
+            FocalLength35mm = Pick(win?.FocalLength35mm, exif.GetValueOrDefault("FocalLength35mm")),
+            ExposureBias = Pick(win?.ExposureBias, exif.GetValueOrDefault("ExposureBias")),
+            MaxAperture = Pick(win?.MaxAperture, exif.GetValueOrDefault("MaxAperture")),
+            MeteringMode = Pick(win?.MeteringMode, exif.GetValueOrDefault("MeteringMode")),
+            SubjectDistance = Pick(win?.SubjectDistance, exif.GetValueOrDefault("SubjectDistance")),
+            DigitalZoom = Pick(win?.DigitalZoom, exif.GetValueOrDefault("DigitalZoom")),
+            LightSource = Pick(win?.LightSource, exif.GetValueOrDefault("LightSource")),
+            Brightness = Pick(win?.Brightness, exif.GetValueOrDefault("Brightness")),
+            ProgramMode = Pick(win?.ProgramMode, exif.GetValueOrDefault("ProgramMode")),
+            LensModel = Pick(win?.LensModel, exif.GetValueOrDefault("LensModel")),
+            WhiteBalance = Pick(win?.WhiteBalance, exif.GetValueOrDefault("WhiteBalance")),
+            Flash = Pick(win?.Flash, exif.GetValueOrDefault("Flash")),
+            Software = Pick(win?.Software, exif.GetValueOrDefault("Software")),
+            Artist = Pick(win?.Artist, exif.GetValueOrDefault("Artist")),
+            Copyright = Pick(win?.Copyright, exif.GetValueOrDefault("Copyright")),
+            Title = Pick(win?.Title, exif.GetValueOrDefault("Title")),
+            Subject = Pick(win?.Subject, exif.GetValueOrDefault("Subject")),
+            Keywords = Pick(win?.Keywords, exif.GetValueOrDefault("Keywords")),
+            OrientationDisplay = Pick(win?.OrientationDisplay, null),
+            Orientation = orientation,
+            SourceHint = sourceHint,
         };
     }
     
@@ -385,75 +440,160 @@ public sealed class ImageDecoder
     private static Dictionary<string, string> ExtractExif(string filePath)
     {
         var result = new Dictionary<string, string>();
-        
+
         try
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
-            
+
             var exifDir = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
             if (exifDir != null)
             {
                 if (exifDir.TryGetDouble(ExifDirectoryBase.TagExposureTime, out double et))
-                    result["ExposureTime"] = et < 1 ? $"1/{(int)(1.0 / et)}" : et.ToString("F1");
-                
+                    result["ExposureTime"] = FormatExposureTime(et);
+
                 if (exifDir.TryGetDouble(ExifDirectoryBase.TagFNumber, out double fn))
                     result["FNumber"] = fn.ToString("F1");
-                
+
                 if (exifDir.TryGetInt32(ExifDirectoryBase.TagIsoEquivalent, out int iso) && iso > 0)
                     result["ISO"] = iso.ToString();
-                
+
                 if (exifDir.TryGetDouble(ExifDirectoryBase.TagFocalLength, out double fl) && fl > 0)
-                    result["FocalLength"] = ((int)fl).ToString() + "mm";
-                
+                    result["FocalLength"] = fl.ToString("0.#") + " mm";
+
+                if (exifDir.TryGetInt32(ExifDirectoryBase.Tag35MMFilmEquivFocalLength, out int fl35) && fl35 > 0)
+                    result["FocalLength35mm"] = fl35.ToString() + " mm";
+
                 if (exifDir.TryGetDateTime(ExifDirectoryBase.TagDateTimeOriginal, out DateTime dt))
                     result["DateTaken"] = dt.ToString("yyyy:MM:dd HH:mm:ss");
-                
+
                 if (exifDir.TryGetInt32(ExifDirectoryBase.TagFlash, out int flash))
-                    result["Flash"] = (flash & 1) == 1 ? "Fired" : "No Flash";
-                
+                    result["Flash"] = (flash & 1) == 1 ? "Flash fired" : "Flash did not fire";
+
                 if (exifDir.TryGetInt32(ExifDirectoryBase.TagOrientation, out int orient))
                     result["Orientation"] = orient.ToString();
-                
+
                 if (exifDir.TryGetInt32(ExifDirectoryBase.TagWhiteBalance, out int wb))
                     result["WhiteBalance"] = wb == 1 ? "Manual" : "Auto";
-                
-                // Read lens model from EXIF if available (common in modern cameras)
+
+                if (exifDir.TryGetDouble(ExifDirectoryBase.TagExposureBias, out double ev))
+                    result["ExposureBias"] = (ev >= 0 ? "+" : "") + ev.ToString("0.0") + " EV";
+
+                if (exifDir.TryGetDouble(ExifDirectoryBase.TagMaxAperture, out double maxAp))
+                    result["MaxAperture"] = "f/" + Math.Pow(2, maxAp / 2.0).ToString("0.#");
+
+                if (exifDir.TryGetInt32(ExifDirectoryBase.TagMeteringMode, out int metering))
+                    result["MeteringMode"] = metering switch
+                    {
+                        1 => "Average",
+                        2 => "CenterWeightedAverage",
+                        3 => "Spot",
+                        4 => "MultiSpot",
+                        5 => "Pattern",
+                        6 => "Partial",
+                        255 => "Other",
+                        _ => metering.ToString()
+                    };
+
+                if (exifDir.TryGetDouble(ExifDirectoryBase.TagSubjectDistance, out double dist) && dist > 0)
+                    result["SubjectDistance"] = dist.ToString("0.##") + " m";
+
+                if (exifDir.TryGetDouble(ExifDirectoryBase.TagDigitalZoomRatio, out double zoom) && zoom > 0)
+                    result["DigitalZoom"] = zoom.ToString("0.##") + "x";
+
+                if (exifDir.TryGetInt32(0x9208, out int light)) // LightSource (0x9208)
+                    result["LightSource"] = light switch
+                    {
+                        0 => "Auto",
+                        1 => "Daylight",
+                        2 => "Fluorescent",
+                        3 => "Tungsten",
+                        10 => "Cloudy",
+                        11 => "Shade",
+                        _ => light.ToString()
+                    };
+
+                if (exifDir.TryGetDouble(ExifDirectoryBase.TagBrightnessValue, out double bv))
+                    result["Brightness"] = bv.ToString("0.##");
+
+                if (exifDir.TryGetInt32(ExifDirectoryBase.TagExposureProgram, out int prog))
+                    result["ProgramMode"] = prog switch
+                    {
+                        1 => "Manual",
+                        2 => "Program AE",
+                        3 => "Aperture Priority",
+                        4 => "Shutter Priority",
+                        5 => "Creative",
+                        6 => "Action",
+                        7 => "Portrait",
+                        8 => "Landscape",
+                        _ => prog.ToString()
+                    };
+
                 var lens = exifDir.GetDescription(ExifDirectoryBase.TagLensModel);
                 if (!string.IsNullOrEmpty(lens))
                     result["LensModel"] = lens;
+
+                var lensMake = exifDir.GetDescription(ExifDirectoryBase.TagLensMake);
+                if (!string.IsNullOrEmpty(lensMake))
+                    result["LensMake"] = lensMake;
+
+                var camOwner = exifDir.GetDescription(ExifDirectoryBase.TagCameraOwnerName);
+                if (!string.IsNullOrEmpty(camOwner))
+                    result["CameraOwner"] = camOwner;
+
+                var camSerial = exifDir.GetDescription(ExifDirectoryBase.TagBodySerialNumber);
+                if (!string.IsNullOrEmpty(camSerial))
+                    result["CameraSerial"] = camSerial;
             }
-            
+
             var ifd0Dir = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
             if (ifd0Dir != null)
             {
                 var make = ifd0Dir.GetDescription(ExifDirectoryBase.TagMake);
                 if (!string.IsNullOrEmpty(make)) result["Make"] = make;
-                
+
                 var model = ifd0Dir.GetDescription(ExifDirectoryBase.TagModel);
                 if (!string.IsNullOrEmpty(model)) result["Model"] = model;
-                
+
                 var software = ifd0Dir.GetDescription(ExifDirectoryBase.TagSoftware);
                 if (!string.IsNullOrEmpty(software)) result["Software"] = software;
-                
+
                 var artist = ifd0Dir.GetDescription(ExifDirectoryBase.TagArtist);
                 if (!string.IsNullOrEmpty(artist)) result["Artist"] = artist;
-                
+
                 var copyright = ifd0Dir.GetDescription(ExifDirectoryBase.TagCopyright);
                 if (!string.IsNullOrEmpty(copyright)) result["Copyright"] = copyright;
-                
+
                 if (!result.ContainsKey("Orientation"))
                 {
                     if (ifd0Dir.TryGetInt32(ExifDirectoryBase.TagOrientation, out int orient))
                         result["Orientation"] = orient.ToString();
                 }
-                
+
                 if (!result.ContainsKey("DateTaken"))
                 {
                     if (ifd0Dir.TryGetDateTime(ExifDirectoryBase.TagDateTime, out DateTime dt))
                         result["DateTaken"] = dt.ToString("yyyy:MM:dd HH:mm:ss");
                 }
             }
-            
+
+            // IPTC / XMP common fields (title, subject, keywords)
+            foreach (var dir in directories)
+            {
+                foreach (var tag in dir.Tags)
+                {
+                    if (string.IsNullOrEmpty(tag.Description))
+                        continue;
+
+                    if (tag.Name is "Object Name" or "Title" or "Headline")
+                        result.TryAdd("Title", tag.Description);
+                    else if (tag.Name is "Caption/Abstract" or "Description" or "Image Description" or "Description")
+                        result.TryAdd("Subject", tag.Description);
+                    else if (tag.Name is "Keywords" or "Keyword" or "Subject")
+                        result.TryAdd("Keywords", tag.Description);
+                }
+            }
+
             ExtractLensInfo(directories, result);
         }
         catch { }
@@ -500,7 +640,27 @@ public sealed class ImageDecoder
         if (DateTime.TryParse(s, out d)) return d;
         return null;
     }
-    
+
     private static double? ParseDouble(string? s) => double.TryParse(s, out var d) ? d : null;
     private static int? ParseInt(string? s) => int.TryParse(s, out var i) ? i : null;
+
+    /// <summary>Matches Windows PSFormatForDisplay output for System.Photo.ExposureTime.</summary>
+    private static string FormatExposureTime(double seconds)
+    {
+        if (seconds <= 0) return "";
+        if (seconds < 1)
+        {
+            var denom = (int)Math.Round(1.0 / seconds);
+            return denom > 0 ? $"1/{denom} sec" : $"{seconds:0.###} sec";
+        }
+        return $"{seconds:0.###} sec";
+    }
+
+    /// <summary>Matches Windows PSFormatForDisplay output for System.Photo.FNumber.</summary>
+    private static string? FormatAperture(double? fNumber) =>
+        fNumber is > 0 ? $"f/{fNumber:0.#}" : null;
+
+    /// <summary>Matches Windows PSFormatForDisplay output for System.Photo.ISOSpeed.</summary>
+    private static string? FormatIso(int? iso) =>
+        iso is > 0 ? $"ISO-{iso}" : null;
 }
