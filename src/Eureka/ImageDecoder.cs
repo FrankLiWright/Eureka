@@ -177,7 +177,17 @@ public sealed class ImageDecoder
     public BitmapSource? DecodeImage(string filePath)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        
+
+        // WebP / GIF can carry stacked or incremental frames ("layers").
+        // Coalesce first so display and color picking both see the composed
+        // visible image — never raw hidden layer pixels.
+        if (ext is ".webp" or ".gif" or ".tif" or ".tiff")
+        {
+            var flat = DecodeWithMagickFlattened(filePath);
+            if (flat != null)
+                return flat;
+        }
+
         if (IsStandardFormat(ext))
         {
             var bmp = new BitmapImage();
@@ -189,22 +199,22 @@ public sealed class ImageDecoder
             bmp.Freeze();
             return bmp;
         }
-        
+
         if (ext is ".avif" or ".heif" or ".heic")
         {
             return DecodeWithMagick(filePath);
         }
-        
+
         if (ext is ".jxl")
         {
             return DecodeWithImageSharp(filePath);
         }
-        
+
         if (IsRawFormat(ext))
         {
             return DecodeWithMagick(filePath);
         }
-        
+
         try
         {
             using var stream = File.OpenRead(filePath);
@@ -328,24 +338,77 @@ public sealed class ImageDecoder
         try
         {
             using var image = new MagickImage();
-            
+
             image.Read(filePath);
-            
+
             image.ColorSpace = ColorSpace.sRGB;
-            
+
             image.Depth = 8;
-            
+
             image.FilterType = FilterType.Lanczos;
             image.Settings.Interlace = Interlace.NoInterlace;
-            
+
             var width = image.Width;
             var height = image.Height;
-            
+
             using var pixelsCollection = image.GetPixels();
             var pixelArray = pixelsCollection.ToByteArray(PixelMapping.BGRA);
-            
+
             if (pixelArray == null) return null;
-            
+
+            var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixelArray, width * 4);
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Decodes multi-frame / multi-layer formats (animated WebP, GIF, layered
+    /// TIFF) into a single composed frame. Frames are coalesced onto the full
+    /// canvas so hidden or incremental layer pixels are gone before display.
+    /// </summary>
+    private static BitmapSource? DecodeWithMagickFlattened(string filePath)
+    {
+        try
+        {
+            using var images = new MagickImageCollection();
+            images.Read(filePath);
+
+            if (images.Count == 0)
+                return null;
+
+            // Coalesce rebuilds every frame as a full-canvas composite
+            // (resolves dispose/blend/offset "hidden layer" updates).
+            if (images.Count > 1)
+            {
+                try { images.Coalesce(); }
+                catch { /* keep raw frames if coalesce is unsupported */ }
+            }
+
+            // Show the last coalesced frame — the final visible state of a
+            // stacked/composited image. Single-frame images land here as-is.
+            using var image = images[^1];
+
+            image.ColorSpace = ColorSpace.sRGB;
+            image.Depth = 8;
+            image.Settings.Interlace = Interlace.NoInterlace;
+
+            // Flatten onto an opaque-free BGRA view of the composed canvas.
+            using var flat = image.Clone();
+            flat.Alpha(AlphaOption.Set); // ensure alpha channel is explicit
+            flat.BackgroundColor = MagickColors.Transparent;
+
+            var width = flat.Width;
+            var height = flat.Height;
+
+            using var pixelsCollection = flat.GetPixels();
+            var pixelArray = pixelsCollection.ToByteArray(PixelMapping.BGRA);
+            if (pixelArray == null) return null;
+
             var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixelArray, width * 4);
             bmp.Freeze();
             return bmp;

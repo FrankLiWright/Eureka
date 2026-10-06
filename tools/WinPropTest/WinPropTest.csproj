@@ -7,6 +7,7 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Magick.NET-Q16-x64" Version="13.10.0" />
     <Reference Include="Eureka">
       <HintPath>..\..\src\Eureka\bin\Debug\net8.0-windows\win-x64\Eureka.dll</HintPath>
     </Reference>

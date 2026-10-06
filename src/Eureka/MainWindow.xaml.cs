@@ -19,20 +19,38 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        
+
+        ApplyBackdropColor();
+
         SourceInitialized += (_, _) =>
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             App.SetDarkMode(hwnd);
         };
-        
-        App.ThemeChanged += _ => InvalidateVisual();
-        
+
+        App.ThemeChanged += _ =>
+        {
+            ApplyBackdropColor();
+            InvalidateVisual();
+        };
+
         var args = Environment.GetCommandLineArgs();
         if (args.Length > 1 && File.Exists(args[1]))
         {
             Loaded += (_, _) => LoadImage(args[1]);
         }
+    }
+
+    /// <summary>
+    /// Keep the color-picker backdrop in sync with the theme so composited
+    /// samples match what the eye sees through transparent pixels.
+    /// </summary>
+    private void ApplyBackdropColor()
+    {
+        if (TryFindResource("BackgroundBrush") is SolidColorBrush bg)
+            Canvas.BackdropColor = bg.Color;
+        else if (Background is SolidColorBrush wb)
+            Canvas.BackdropColor = wb.Color;
     }
     
     private async void LoadImage(string filePath)
@@ -212,10 +230,13 @@ public partial class MainWindow : Window
     
     private void OnZoomChanged(double zoom) => ZoomText.Text = $"{zoom * 100:F0}%";
     
-    private void OnPixelHovered(int x, int y, Color c) 
-    { 
-        ColorSwatch.Background = new SolidColorBrush(c); 
-        ColorText.Text = $"#{c.R:X2}{c.G:X2}{c.B:X2}  ({x},{y})"; 
+    private void OnPixelHovered(int x, int y, Color c, byte alpha)
+    {
+        ColorSwatch.Background = new SolidColorBrush(c);
+        // c is the composited visible color (alpha already blended onto backdrop).
+        ColorText.Text = alpha == 255
+            ? $"#{c.R:X2}{c.G:X2}{c.B:X2}  ({x},{y})"
+            : $"#{c.R:X2}{c.G:X2}{c.B:X2} A={alpha}  ({x},{y})";
     }
     
     private void OnFitToWindow(object s, RoutedEventArgs e) => Canvas.FitToWindow();
